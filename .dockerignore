@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+.git/
+.github/
+tests/
+*.json
+!baseline.example.json

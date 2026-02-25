@@ -7,6 +7,7 @@ from typing import Any
 from .backends.base import AgentBackend
 from .backends.mock import MockBackend
 from .evaluator import Evaluator, EvaluationResult
+from .hooks import HookEvent, HookRegistry
 from .scenarios import Scenario
 
 
@@ -21,6 +22,12 @@ class RunResult:
 class Runner:
     """
     Orchestrates scenario execution, evaluation, and baseline management.
+
+    Args:
+        backend:       LLM backend to generate responses (default: MockBackend).
+        evaluator:     Evaluator instance (default: Evaluator()).
+        baseline_path: Path to a baseline JSON for drift detection.
+        hooks:         HookRegistry for observability callbacks.
     """
 
     def __init__(
@@ -28,11 +35,13 @@ class Runner:
         backend: AgentBackend | None = None,
         evaluator: Evaluator | None = None,
         baseline_path: Path | str | None = None,
+        hooks: HookRegistry | None = None,
     ):
         self.backend = backend or MockBackend()
         self.evaluator = evaluator or Evaluator()
         self.baseline_path = Path(baseline_path) if baseline_path else None
         self._baseline: dict | None = None
+        self.hooks = hooks or HookRegistry()
 
     @property
     def baseline(self) -> dict | None:
@@ -42,11 +51,16 @@ class Runner:
         return self._baseline
 
     def run_scenario(self, scenario: Scenario) -> EvaluationResult:
+        self.hooks.emit(HookEvent.SCENARIO_START, scenario=scenario)
+
         output = self.backend.generate(scenario.input, max_tokens=scenario.max_tokens)
         previous = None
         if self.baseline:
             previous = self.baseline.get("scenarios", {}).get(scenario.name)
-        return self.evaluator.evaluate(scenario, output, previous)
+        result = self.evaluator.evaluate(scenario, output, previous)
+
+        self.hooks.emit(HookEvent.SCENARIO_END, scenario=scenario, result=result)
+        return result
 
     def run_directory(self, directory: Path | str, tag: str | None = None) -> RunResult:
         directory = Path(directory)
@@ -57,10 +71,12 @@ class Runner:
                 msg += f" with tag '{tag}'"
             raise ValueError(msg)
 
+        self.hooks.emit(HookEvent.RUN_START, directory=str(directory), tag=tag)
+
         results = [self.run_scenario(s) for s in scenarios]
 
         passed = sum(1 for r in results if r.passed)
-        return RunResult(
+        run_result = RunResult(
             model=getattr(self.backend, "model", "mock"),
             timestamp=datetime.now(timezone.utc).isoformat(),
             scenario_results=results,
@@ -71,6 +87,9 @@ class Runner:
                 "pass_rate": passed / len(results),
             },
         )
+
+        self.hooks.emit(HookEvent.RUN_END, run_result=run_result)
+        return run_result
 
     def save_baseline(self, result: RunResult, path: Path | str) -> None:
         path = Path(path)

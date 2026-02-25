@@ -130,6 +130,77 @@ metadata:
     click.echo(f"Scenario created → {output}")
 
 
+@cli.command("generate-scenario")
+@click.argument("description")
+@click.argument("output", type=click.Path())
+@click.option(
+    "--backend",
+    type=click.Choice(["anthropic", "openai"]),
+    default="anthropic",
+    show_default=True,
+    help="LLM backend to use for generation",
+)
+@click.option("--model", default=None, help="Model ID override")
+def generate_scenario(description, output, backend, model):
+    """Use an LLM to generate a scenario YAML from a natural language DESCRIPTION.
+
+    Example:
+
+    \b
+        agentprobe generate-scenario \\
+            "Summarise a legal contract and list the key obligations" \\
+            scenarios/legal_summary.yaml
+    """
+    # ── build backend ─────────────────────────────────────────────────────
+    try:
+        if backend == "anthropic":
+            be = AnthropicBackend(model=model or "claude-opus-4-6")
+        else:
+            be = OpenAIBackend(model=model or "gpt-4o")
+    except (ValueError, ImportError) as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
+
+    # ── prompt the LLM ────────────────────────────────────────────────────
+    system_block = (
+        "You are an expert at writing agentprobe scenario YAML files. "
+        "Output ONLY valid YAML — no markdown fences, no prose, no explanation."
+    )
+    user_block = f"""Create an agentprobe scenario YAML for the following task:
+
+{description}
+
+The YAML MUST contain exactly these top-level keys:
+  name            - short snake_case identifier derived from the task
+  input           - the detailed prompt to send to the agent (multi-line string)
+  expected_contains - list of 4-8 key terms the response must include
+  max_tokens      - appropriate integer (256–2048)
+  tags            - list of relevant tags (always include "smoke")
+  metadata        - mapping with keys: category (smoke|regression) and priority (high|medium|low)
+"""
+
+    full_prompt = f"{system_block}\n\n{user_block}"
+
+    click.echo(f"Generating scenario via {backend}…")
+    try:
+        raw_yaml = be.generate(full_prompt, max_tokens=1024)
+    except Exception as e:
+        click.echo(f"Generation failed: {e}", err=True)
+        sys.exit(1)
+
+    # Strip accidental markdown fences the model might add
+    lines = raw_yaml.strip().splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].startswith("```"):
+        lines = lines[:-1]
+    clean_yaml = "\n".join(lines) + "\n"
+
+    Path(output).write_text(clean_yaml)
+    click.echo(f"Scenario written → {output}")
+    click.echo("Review the file and adjust expected_contains before committing.")
+
+
 def main():
     cli()
 
