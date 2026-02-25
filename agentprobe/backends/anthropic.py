@@ -19,7 +19,7 @@ class AnthropicBackend(AgentBackend):
         if not self.api_key:
             raise ValueError(
                 "Anthropic API key required. "
-                "Set ANTHROPIC_API_KEY or pass api_key=."
+                "Set ANTHROPIC_API_KEY or pass api_key=<your_key>."
             )
         self.client = Anthropic(api_key=self.api_key)
         self.model = model
