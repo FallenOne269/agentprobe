@@ -67,10 +67,19 @@ metadata:
   priority: high
 ```
 
-Run a directory of scenarios:
+Scenarios can carry a `tags` list for selective runs:
+
+```yaml
+tags:
+  - smoke
+  - legal
+```
+
+Run a directory of scenarios, optionally filtering by tag:
 
 ```bash
 agentprobe run scenarios/
+agentprobe run scenarios/ --tag smoke
 ```
 
 ---
@@ -98,15 +107,20 @@ Drift is measured by [Jaccard similarity](https://en.wikipedia.org/wiki/Jaccard_
 | Backend | Key required | Use case |
 |---------|-------------|----------|
 | `mock`  | No | CI, fast feedback, deterministic |
-| `anthropic` | `ANTHROPIC_API_KEY` | Production evaluation |
+| `anthropic` | `ANTHROPIC_API_KEY` | Claude models |
+| `openai` | `OPENAI_API_KEY` | GPT models |
 
 ```bash
 # Mock (default)
 agentprobe run scenarios/
 
 # Claude
-export ANTHROPIC_API_KEY=sk-...
+export ANTHROPIC_API_KEY=sk-ant-...
 agentprobe run scenarios/ --backend anthropic --model claude-opus-4-6
+
+# OpenAI
+export OPENAI_API_KEY=sk-...
+agentprobe run scenarios/ --backend openai --model gpt-4o
 ```
 
 ---
@@ -157,10 +171,11 @@ print(result.passed, result.errors)
 - [x] Baseline + drift detection
 - [x] Mock backend for CI
 - [x] Anthropic/Claude backend
+- [x] OpenAI backend
+- [x] Scenario tagging + selective runs (`--tag smoke`)
 - [ ] Semantic similarity (embeddings-based drift)
-- [ ] HTML/JSON report output
-- [ ] OpenAI / Bedrock backends
-- [ ] Scenario tagging + selective runs (`--tag smoke`)
+- [ ] HTML report output
+- [ ] Bedrock backend
 
 ---
 

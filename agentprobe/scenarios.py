@@ -13,6 +13,7 @@ class Scenario:
     input: str
     expected_contains: list[str] = field(default_factory=list)
     max_tokens: int = 1024
+    tags: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     @property
@@ -30,12 +31,14 @@ class Scenario:
             yaml.dump(asdict(self), f, default_flow_style=False)
 
     @classmethod
-    def load_directory(cls, directory: Path | str) -> list["Scenario"]:
+    def load_directory(cls, directory: Path | str, tag: str | None = None) -> list["Scenario"]:
         directory = Path(directory)
         scenarios = []
         for yaml_file in sorted(directory.glob("*.yaml")):
             try:
-                scenarios.append(cls.from_yaml(yaml_file))
+                s = cls.from_yaml(yaml_file)
+                if tag is None or tag in s.tags:
+                    scenarios.append(s)
             except Exception as e:
                 print(f"Warning: could not load {yaml_file}: {e}")
         return scenarios

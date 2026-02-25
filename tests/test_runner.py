@@ -12,12 +12,13 @@ from agentprobe.runner import Runner
 from agentprobe.scenarios import Scenario
 
 
-def write_scenario(directory: Path, name: str, expected_contains=None) -> Path:
+def write_scenario(directory: Path, name: str, expected_contains=None, tags=None) -> Path:
     data = {
         "name": name,
         "input": f"Test prompt for {name}",
         "expected_contains": expected_contains or [],
         "max_tokens": 128,
+        "tags": tags or [],
         "metadata": {},
     }
     p = directory / f"{name}.yaml"
@@ -127,3 +128,33 @@ class TestBaseline:
         result2 = runner2.run_directory(tmp_path)
         drift = result2.scenario_results[0].metrics.get("drift_score")
         assert drift == 1.0  # deterministic → no drift
+
+
+class TestTagFiltering:
+    def test_tag_filter_runs_matching_only(self, tmp_path):
+        write_scenario(tmp_path, "s_smoke", tags=["smoke"])
+        write_scenario(tmp_path, "s_regression", tags=["regression"])
+        runner = Runner(backend=MockBackend())
+        result = runner.run_directory(tmp_path, tag="smoke")
+        assert result.summary["total"] == 1
+        assert result.scenario_results[0].scenario_name == "s_smoke"
+
+    def test_tag_filter_no_match_raises(self, tmp_path):
+        write_scenario(tmp_path, "s1", tags=["smoke"])
+        runner = Runner(backend=MockBackend())
+        with pytest.raises(ValueError, match="no_such_tag"):
+            runner.run_directory(tmp_path, tag="no_such_tag")
+
+    def test_no_tag_runs_all(self, tmp_path):
+        write_scenario(tmp_path, "s1", tags=["smoke"])
+        write_scenario(tmp_path, "s2", tags=["regression"])
+        write_scenario(tmp_path, "s3")
+        runner = Runner(backend=MockBackend())
+        result = runner.run_directory(tmp_path)
+        assert result.summary["total"] == 3
+
+    def test_multiple_tags_scenario_matches(self, tmp_path):
+        write_scenario(tmp_path, "s_multi", tags=["smoke", "regression"])
+        runner = Runner(backend=MockBackend())
+        result = runner.run_directory(tmp_path, tag="regression")
+        assert result.summary["total"] == 1

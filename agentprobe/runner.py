@@ -48,11 +48,14 @@ class Runner:
             previous = self.baseline.get("scenarios", {}).get(scenario.name)
         return self.evaluator.evaluate(scenario, output, previous)
 
-    def run_directory(self, directory: Path | str) -> RunResult:
+    def run_directory(self, directory: Path | str, tag: str | None = None) -> RunResult:
         directory = Path(directory)
-        scenarios = Scenario.load_directory(directory)
+        scenarios = Scenario.load_directory(directory, tag=tag)
         if not scenarios:
-            raise ValueError(f"No .yaml scenarios found in {directory}")
+            msg = f"No .yaml scenarios found in {directory}"
+            if tag:
+                msg += f" with tag '{tag}'"
+            raise ValueError(msg)
 
         results = [self.run_scenario(s) for s in scenarios]
 

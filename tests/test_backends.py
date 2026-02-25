@@ -1,4 +1,4 @@
-"""Tests for backends — mock determinism, Anthropic auth handling."""
+"""Tests for backends — mock determinism, Anthropic and OpenAI auth handling."""
 
 from unittest.mock import MagicMock, patch
 
@@ -6,6 +6,7 @@ import pytest
 
 from agentprobe.backends.mock import MockBackend
 from agentprobe.backends.anthropic import AnthropicBackend
+from agentprobe.backends.openai import OpenAIBackend
 
 
 class TestMockBackend:
@@ -82,3 +83,38 @@ class TestAnthropicBackend:
         with patch("agentprobe.backends.anthropic.Anthropic"):
             b = AnthropicBackend(model="claude-haiku-4-5-20251001")
             assert b.model == "claude-haiku-4-5-20251001"
+
+
+class TestOpenAIBackend:
+    def test_raises_without_api_key(self, monkeypatch):
+        monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+        with pytest.raises(ValueError, match="API key"):
+            OpenAIBackend(api_key=None)
+
+    def test_generate_calls_client(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test-key")
+
+        mock_choice = MagicMock()
+        mock_choice.message.content = "Mocked OpenAI response"
+        mock_response = MagicMock()
+        mock_response.choices = [mock_choice]
+
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = mock_response
+
+        with patch("agentprobe.backends.openai.OpenAI", return_value=mock_client):
+            b = OpenAIBackend(model="gpt-4o")
+            result = b.generate("Test prompt", max_tokens=100)
+
+        assert result == "Mocked OpenAI response"
+        mock_client.chat.completions.create.assert_called_once_with(
+            model="gpt-4o",
+            max_tokens=100,
+            messages=[{"role": "user", "content": "Test prompt"}],
+        )
+
+    def test_model_stored(self, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+        with patch("agentprobe.backends.openai.OpenAI"):
+            b = OpenAIBackend(model="gpt-4o-mini")
+            assert b.model == "gpt-4o-mini"

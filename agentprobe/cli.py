@@ -7,6 +7,7 @@ import click
 from .runner import Runner
 from .backends.mock import MockBackend
 from .backends.anthropic import AnthropicBackend
+from .backends.openai import OpenAIBackend
 from .evaluator import Evaluator
 
 
@@ -19,10 +20,10 @@ def cli():
 
 @cli.command()
 @click.argument("scenarios_dir", type=click.Path(exists=True, file_okay=False))
-@click.option("--backend", type=click.Choice(["mock", "anthropic"]), default="mock",
+@click.option("--backend", type=click.Choice(["mock", "anthropic", "openai"]), default="mock",
               show_default=True, help="Backend to use")
-@click.option("--model", default="claude-opus-4-6", show_default=True,
-              help="Model ID (anthropic backend only)")
+@click.option("--model", default=None,
+              help="Model ID (default: claude-opus-4-6 for anthropic, gpt-4o for openai)")
 @click.option("--baseline", type=click.Path(dir_okay=False),
               help="Baseline JSON for drift detection")
 @click.option("-o", "--output", type=click.Path(),
@@ -31,15 +32,23 @@ def cli():
               help="Save this run as new baseline")
 @click.option("--tolerance", default=1.0, show_default=True, type=float,
               help="Pass threshold 0.0–1.0")
-def run(scenarios_dir, backend, model, baseline, output, save_baseline, tolerance):
+@click.option("--tag", default=None,
+              help="Only run scenarios that include this tag")
+def run(scenarios_dir, backend, model, baseline, output, save_baseline, tolerance, tag):
     """Run all .yaml scenarios in SCENARIOS_DIR against the chosen backend."""
 
     # ── backend ──────────────────────────────────────────────────────────
     if backend == "mock":
         be = MockBackend()
-    else:
+    elif backend == "anthropic":
         try:
-            be = AnthropicBackend(model=model)
+            be = AnthropicBackend(model=model or "claude-opus-4-6")
+        except (ValueError, ImportError) as e:
+            click.echo(f"Error: {e}", err=True)
+            sys.exit(1)
+    else:  # openai
+        try:
+            be = OpenAIBackend(model=model or "gpt-4o")
         except (ValueError, ImportError) as e:
             click.echo(f"Error: {e}", err=True)
             sys.exit(1)
@@ -52,7 +61,7 @@ def run(scenarios_dir, backend, model, baseline, output, save_baseline, toleranc
     )
 
     try:
-        results = runner.run_directory(scenarios_dir)
+        results = runner.run_directory(scenarios_dir, tag=tag)
     except ValueError as e:
         click.echo(f"Error: {e}", err=True)
         sys.exit(1)
@@ -111,6 +120,8 @@ expected_contains:
   - keyword_one
   - keyword_two
 max_tokens: 512
+tags:
+  - smoke
 metadata:
   category: smoke
   priority: high
