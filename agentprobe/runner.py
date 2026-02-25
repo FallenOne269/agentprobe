@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, field
@@ -9,9 +10,20 @@ from .backends.mock import MockBackend
 from .evaluator import Evaluator, EvaluationResult
 from .scenarios import Scenario
 
+logger = logging.getLogger(__name__)
+
 
 @dataclass
 class RunResult:
+    """Aggregated results from a full scenario directory run.
+
+    Attributes:
+        model: Model identifier reported by the backend.
+        timestamp: ISO-8601 UTC timestamp of when the run completed.
+        scenario_results: Per-scenario evaluation results.
+        summary: Counts of total/passed/failed scenarios and pass_rate.
+    """
+
     model: str
     timestamp: str
     scenario_results: list[EvaluationResult]
@@ -36,12 +48,18 @@ class Runner:
 
     @property
     def baseline(self) -> dict | None:
+        """Lazily load and cache baseline JSON from ``baseline_path``.
+
+        Returns ``None`` when no baseline path was provided or the file does
+        not yet exist.
+        """
         if self._baseline is None and self.baseline_path and self.baseline_path.exists():
             with open(self.baseline_path) as f:
                 self._baseline = json.load(f)
         return self._baseline
 
     def run_scenario(self, scenario: Scenario) -> EvaluationResult:
+        """Run a single scenario against the backend and return evaluation results."""
         output = self.backend.generate(scenario.input, max_tokens=scenario.max_tokens)
         previous = None
         if self.baseline:
@@ -49,6 +67,11 @@ class Runner:
         return self.evaluator.evaluate(scenario, output, previous)
 
     def run_directory(self, directory: Path | str) -> RunResult:
+        """Load and run every ``.yaml`` scenario found in *directory*.
+
+        Raises:
+            ValueError: If no ``.yaml`` files are found in *directory*.
+        """
         directory = Path(directory)
         scenarios = Scenario.load_directory(directory)
         if not scenarios:
@@ -70,6 +93,7 @@ class Runner:
         )
 
     def save_baseline(self, result: RunResult, path: Path | str) -> None:
+        """Persist *result* as a baseline JSON file at *path*."""
         path = Path(path)
         data = {
             "model": result.model,
@@ -85,4 +109,4 @@ class Runner:
         }
         with open(path, "w") as f:
             json.dump(data, f, indent=2)
-        print(f"Baseline saved → {path}")
+        logger.info("Baseline saved → %s", path)
