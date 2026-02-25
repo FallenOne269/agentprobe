@@ -1,0 +1,17 @@
+name: summarize_contract
+input: |
+  Summarize the following contract clause in 5 bullet points:
+
+  "The Contractor shall indemnify and hold harmless the Client from any and all claims,
+  damages, losses, and expenses arising out of or resulting from the Contractor's performance
+  of the Work, provided that such claim is attributable to bodily injury or property damage.
+  This agreement may be terminated by either party upon 30 days written notice. Upon termination,
+  all outstanding payments shall become immediately due and payable. The liability of either party
+  shall not exceed the total contract value."
+expected_contains:
+  - liability
+  - termination
+max_tokens: 512
+metadata:
+  category: legal
+  priority: high

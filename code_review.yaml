@@ -1,0 +1,13 @@
+name: code_review_python
+input: |
+  Review this Python function for bugs and suggest improvements:
+
+  def divide(a, b):
+      return a / b
+expected_contains:
+  - zero
+  - exception
+max_tokens: 512
+metadata:
+  category: code
+  priority: high
