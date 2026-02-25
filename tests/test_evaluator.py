@@ -74,3 +74,20 @@ class TestDriftDetection:
         s = make_scenario([])
         result = ev.evaluate(s, "Any output.", None)
         assert result.metrics["drift_score"] is None
+
+
+class TestMakeScenarioExpectedContains:
+    def test_expected_contains_default_when_omitted(self):
+        # When expected_contains is omitted, the helper should apply the default
+        scenario = make_scenario()
+        assert scenario.expected_contains == ["liability", "termination"]
+
+    def test_expected_contains_default_when_none(self):
+        # When expected_contains is explicitly None, the helper should apply the default
+        scenario = make_scenario(expected_contains=None)
+        assert scenario.expected_contains == ["liability", "termination"]
+
+    def test_expected_contains_preserves_empty_list(self):
+        # When expected_contains is an empty list, the helper should NOT apply the default
+        scenario = make_scenario(expected_contains=[])
+        assert scenario.expected_contains == []
