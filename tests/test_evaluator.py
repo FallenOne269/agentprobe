@@ -9,7 +9,7 @@ def make_scenario(expected_contains=None):
     return Scenario(
         name="test_scenario",
         input="Summarize this contract.",
-        expected_contains=expected_contains or ["liability", "termination"],
+        expected_contains=expected_contains if expected_contains is not None else ["liability", "termination"],
     )
 
 
